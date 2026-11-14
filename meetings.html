@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Year-End Meetup – Create & Share</title>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--tx:#1d1d1b;--mut:#6b6a64;--ac:#0f766e;--act:#fff;--bd:#e2dfd6}
+@media(prefers-color-scheme:dark){:root{--bg:#141413;--card:#1e1e1c;--tx:#f1efe8;--mut:#a09f97;--ac:#2dd4bf;--act:#06201c;--bd:#34332f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,sans-serif;padding:16px}
+.wrap{max-width:960px;margin:0 auto}
+h1{font-size:1.5rem;margin:8px 0 4px}
+.sub{color:var(--mut);margin:0 0 16px}
+.grid{display:grid;gap:16px;grid-template-columns:1fr}
+@media(min-width:800px){.grid{grid-template-columns:1fr 1fr}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px}
+label{display:block;font-size:.85rem;color:var(--mut);margin:12px 0 4px}
+input,textarea{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+textarea{min-height:90px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button,.btn{background:var(--ac);color:var(--act);border:0;border-radius:10px;padding:11px 16px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}
+button.alt,.btn.alt{background:transparent;color:var(--tx);border:1px solid var(--bd)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.ev img{width:100%;border-radius:10px;display:block;margin-bottom:12px}
+.ph{border:2px dashed var(--bd);border-radius:10px;padding:48px 12px;text-align:center;color:var(--mut);margin-bottom:12px}
+.ev h2{margin:0 0 8px;font-size:1.4rem}
+.ev p{margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.cd{font-weight:700;color:var(--ac);font-size:1.1rem}
+.note{font-size:.8rem;color:var(--mut);margin-top:6px}
+.hide{display:none}
+#out{margin-top:14px}
+</style></head><body><div class="wrap">
+
+<div id="create">
+  <h1>🎉 Create your event page</h1>
+  <p class="sub">Fill in your details, add a flier, then generate a link to share with anyone.</p>
+  <div class="grid">
+    <div class="card">
+      <label>Event title</label><input id="title" placeholder="Year-End Meetup">
+      <div class="row"><div><label>Date</label><input id="date" type="date"></div>
+      <div><label>Start time</label><input id="time" type="time" value="12:00"></div></div>
+      <label>Place or platform</label><input id="place" placeholder="Zoom / Google Meet / venue name">
+      <label>Meeting link (Zoom, Google Meet…)</label><input id="link" placeholder="https://meet.google.com/...">
+      <div class="row"><div><label>Fee (optional)</label><input id="fee" placeholder="e.g. UGX 20,000 or Free"></div>
+      <div><label>Host name</label><input id="host"></div></div>
+      <label>How to pay (optional)</label><input id="pay" placeholder="e.g. Mobile Money 07XX XXX XXX">
+      <label>Details</label><textarea id="desc" placeholder="Agenda, who should come, what to bring…"></textarea>
+      <label>Contact (phone / email)</label><input id="contact">
+      <label>Flier: upload an image</label><input id="file" type="file" accept="image/*">
+      <div class="note" id="imgnote">Image is shrunk automatically so it fits inside the link.</div>
+      <label>…or paste a flier image link (keeps your share link short)</label><input id="imgurl" placeholder="https://...jpg">
+      <div class="btns"><button id="gen">Generate shareable link</button></div>
+      <div id="out" class="hide">
+        <input id="url" readonly>
+        <div class="note" id="len"></div>
+        <div class="btns">
+          <button id="copy">Copy link</button>
+          <a class="btn alt" id="wa" target="_blank" rel="noopener">Share on WhatsApp</a>
+          <a class="btn alt" id="open" target="_blank" rel="noopener">Open page</a>
+        </div>
+      </div>
+    </div>
+    <div><div class="card ev" id="prev"></div><div class="note">Live preview</div></div>
+  </div>
+</div>
+
+<div id="view" class="hide">
+  <div class="card ev" id="viewcard"></div>
+  <div class="btns">
+    <button id="ics" class="alt">Add to calendar</button>
+    <button id="share" class="alt">Share</button>
+    <button id="edit" class="alt">Edit this event</button>
+    <a class="btn alt" id="mine">Create your own</a>
+  </div>
+</div>
+
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const F=['title','date','time','place','link','fee','host','pay','desc','contact','imgurl'];
+let img='',timer;
+const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safe=u=>{try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:''}catch(e){return''}};
+const enc=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const dec=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return JSON.parse(decodeURIComponent(escape(atob(s))))};
+const base=()=>location.href.split('#')[0];
+const read=()=>{const o={};F.forEach(k=>o[k]=$(k).value.trim());o.img=img;return o};
+const when=o=>{if(!o.date)return null;return new Date(o.date+'T'+(o.time||'12:00'))};
+
+function card(o,live){
+  const src=o.img||safe(o.imgurl);
+  const d=when(o);
+  const ds=d?d.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'})+(o.time?' · '+d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''):'';
+  const l=safe(o.link);
+  return (src?`<img src="${esc(src)}" alt="Event flier">`:`<div class="ph">Your flier will appear here</div>`)+
+  `<h2>${esc(o.title)||'Your event title'}</h2>`+
+  (live&&d?`<p class="cd" id="cd"></p>`:'')+
+  (ds?`<p>📅 ${esc(ds)}</p>`:'')+
+  (o.place?`<p>📍 ${esc(o.place)}</p>`:'')+
+  (o.fee?`<p>💰 Fee: ${esc(o.fee)}</p>`:'')+
+  (o.pay?`<p>💳 ${esc(o.pay)}</p>`:'')+
+  (o.host?`<p>🙋 Hosted by ${esc(o.host)}</p>`:'')+
+  (o.desc?`<p>${esc(o.desc)}</p>`:'')+
+  (o.contact?`<p>☎️ ${esc(o.contact)}</p>`:'')+
+  (l?`<div class="btns"><a class="btn" href="${esc(l)}" target="_blank" rel="noopener">Join meeting</a></div>`:'');
+}
+function preview(){$('prev').innerHTML=card(read(),false)}
+F.forEach(k=>$(k).addEventListener('input',preview));
+
+$('file').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{const i=new Image();i.onload=()=>{
+    const m=640,s=Math.min(1,m/Math.max(i.width,i.height));
+    const c=document.createElement('canvas');c.width=i.width*s;c.height=i.height*s;
+    c.getContext('2d').drawImage(i,0,0,c.width,c.height);
+    img=c.toDataURL('image/jpeg',.6);
+    $('imgnote').textContent='Flier added ('+Math.round(img.length/1024)+' KB). Smaller = shorter link.';
+    preview();};i.src=r.result};
+  r.readAsDataURL(f);
+};
+
+$('gen').onclick=()=>{
+  const o=read();
+  if(!o.title){alert('Please add an event title.');return}
+  const u=base()+'#'+enc(o);
+  $('url').value=u;$('out').classList.remove('hide');
+  $('len').textContent='Link size: '+(u.length>1000?Math.round(u.length/1024)+' KB':u.length+' characters')+(u.length>20000?'. Long link: for easier sharing, use a flier image link instead of uploading.':'');
+  $('wa').href='https://wa.me/?text='+encodeURIComponent((o.title||'Event')+'\n'+u);
+  $('open').href=u;
+};
+$('copy').onclick=async()=>{
+  try{await navigator.clipboard.writeText($('url').value)}catch(e){$('url').select();document.execCommand('copy')}
+  $('copy').textContent='Copied ✓';setTimeout(()=>$('copy').textContent='Copy link',1500);
+};
+
+function tick(o){
+  const d=when(o),el=$('cd');if(!d||!el)return;
+  const go=()=>{const t=d-new Date();
+    if(t<=0){el.textContent='Event time has arrived';return}
+    const D=Math.floor(t/864e5),H=Math.floor(t%864e5/36e5),M=Math.floor(t%36e5/6e4),S=Math.floor(t%6e4/1e3);
+    el.textContent='⏳ Starts in '+D+'d '+H+'h '+M+'m '+S+'s'};
+  go();clearInterval(timer);timer=setInterval(go,1000);
+}
+const p2=n=>String(n).padStart(2,'0');
+const ics=d=>d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'T'+p2(d.getHours())+p2(d.getMinutes())+'00';
+
+function showView(o){
+  $('create').classList.add('hide');$('view').classList.remove('hide');
+  document.title=o.title||'Event';
+  $('viewcard').innerHTML=card(o,true);tick(o);
+  $('mine').href=base();
+  $('ics').onclick=()=>{
+    const d=when(o);if(!d){alert('No date set for this event.');return}
+    const e=new Date(d.getTime()+2*36e5);
+    const t=['BEGIN:VCALENDAR','VERSION:2.0','BEGIN:VEVENT','DTSTART:'+ics(d),'DTEND:'+ics(e),
+      'SUMMARY:'+(o.title||'Event'),'LOCATION:'+(o.place||''),'DESCRIPTION:'+((o.desc||'')+' '+(safe(o.link)||'')).replace(/\n/g,' '),'END:VEVENT','END:VCALENDAR'].join('\r\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/calendar'}));a.download='event.ics';a.click();
+  };
+  $('share').onclick=()=>{
+    if(navigator.share)navigator.share({title:o.title,url:location.href});
+    else navigator.clipboard.writeText(location.href).then(()=>alert('Link copied'));
+  };
+  $('edit').onclick=()=>{
+    F.forEach(k=>$(k).value=o[k]||'');img=o.img||'';
+    $('view').classList.add('hide');$('create').classList.remove('hide');
+    history.replaceState(null,'',base());clearInterval(timer);preview();
+  };
+}
+
+function init(){
+  const h=location.hash.slice(1);
+  if(h){try{showView(dec(h));return}catch(e){}}
+  preview();
+}
+window.addEventListener('hashchange',()=>location.reload());
+init();
+</script></body></html>
