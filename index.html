@@ -157,6 +157,8 @@ h1{font-size:clamp(1.4rem,5vw,2rem)}
       </div>
       <div class="card">
         <h3>3 · Share</h3>
+        <label>Edit passcode (optional)</label><input id="pass" type="password" autocomplete="off" placeholder="Set a passcode so only you can edit later">
+        <div class="note">Without a passcode, nobody can edit the event from the shared link.</div>
         <div class="btns"><button id="gen" class="big">Generate shareable link</button></div>
         <div id="out" class="hide">
           <label>Your link</label><input id="url" readonly>
@@ -203,7 +205,8 @@ const $=id=>document.getElementById(id);
 let tt;const toast=m=>{const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),3200)};
 $('bn').textContent=CFG.brand;$('lg').textContent=CFG.brand[0];$('ft').textContent='Created with '+CFG.brand;
 const F=['title','date','time','place','link','fee','host','pay','desc','contact'];
-const KEYS=[...F,'imgurl','img','tz','utc','pics'];
+const KEYS=[...F,'imgurl','img','tz','utc','pics','ph'];
+async function sha(t){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('ev:'+t));return [...new Uint8Array(b)].slice(0,8).map(x=>x.toString(16).padStart(2,'0')).join('')}catch(e){return''}}
 let pics=[],timer;
 const okSrc=u=>/^data:image\//.test(u)?u:safe(u);
 const P=o=>(Array.isArray(o.pics)&&o.pics.length?o.pics:[o.img||o.imgurl]).map(u=>u?okSrc(u):'').filter(Boolean);
@@ -299,6 +302,7 @@ $('file').onchange=async e=>{
 $('gen').onclick=async()=>{
   const o=read();
   if(!o.title||!o.date){toast('Please add an event title and date.');return}
+  const pw=$('pass').value.trim();if(pw)o.ph=await sha(pw);
   const u=base()+'#'+await pack(o);
   $('url').value=u;$('out').classList.remove('hide');$('short').classList.remove('hide');
   if(!$('alias').value)$('alias').value=clean(o.title||'event').slice(0,20)+'_'+o.date.slice(2).replace(/-/g,'');$('ap').textContent=$('alias').value;
@@ -348,7 +352,11 @@ function showView(o){
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/calendar'}));a.download='event.ics';a.click();
   };
   $('share').onclick=()=>{navigator.share?navigator.share({title:o.title,url:location.href}):navigator.clipboard.writeText(location.href).then(()=>toast('Link copied'))};
-  $('edit').onclick=()=>{
+  if(!o.ph)$('edit').classList.add('hide');
+  $('edit').onclick=async()=>{
+    const pw=prompt('Enter the edit passcode');if(pw===null)return;
+    if(await sha(pw)!==o.ph){toast('Wrong passcode.');return}
+    $('pass').value=pw;
     F.forEach(k=>$(k).value=o[k]||'');pics=P(o).slice();renderThumbs();
     $('view').classList.add('hide');$('nav').classList.remove('hide');mode('e');
     history.replaceState(null,'',base());clearInterval(timer);preview();
